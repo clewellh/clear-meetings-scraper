@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 supabase-py
+          pip install requests beautifulsoup4 supabase
 
       - name: Run New Providence scraper
         env:
