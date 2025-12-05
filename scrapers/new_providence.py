@@ -11,7 +11,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # service key needed to write
 client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # New Providence agenda page
-NP_URL = "https://www.newprov.org/borough-government/borough-council/"
+NP_URL = NP_URL = "https://www.newprov.us/AgendaCenter"
 
 # Regex for dates like "January 8, 2024"
 DATE_REGEX = r"([A-Za-z]+ \d{1,2}, \d{4})"
