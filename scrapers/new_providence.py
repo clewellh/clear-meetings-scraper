@@ -35,30 +35,55 @@ def scrape_new_providence():
 
     meetings = []
 
-    # Find PDF links that look like agendas or minutes
-    for link in soup.find_all("a", href=True):
-        href = link["href"]
-        text = link.get_text(" ", strip=True)
+    # 1. Find the "Borough Council" section header
+    borough_header = soup.find(["h2", "h3"], string=lambda s: s and "Borough Council" in s)
+    if not borough_header:
+        print("No Borough Council section found")
+        return meetings
 
-        if ".pdf" not in href.lower():
-            continue
+    # 2. Walk forward from that header until the next h2 (next category)
+    for el in borough_header.find_all_next():
+        # Stop when we hit the next top-level section
+        if el.name == "h2" and el is not borough_header:
+            break
 
-        # Try to extract a date
-        meeting_date = parse_date(text)
-        if not meeting_date:
-            continue
+        # Each meeting date is in an <h3> like "Dec 2, 2025"
+        if el.name == "h3":
+            date_text = el.get_text(" ", strip=True)
+            meeting_date = parse_date(date_text)
+            if not meeting_date:
+                continue
 
-        meeting = {
-            "municipality": "New Providence",
-            "body_name": "Borough Council",
-            "title": "Borough Council Meeting",
-            "meeting_date": meeting_date.isoformat(),
-            "agenda_url": href,
-        }
+            # Find the first link after this h3 with "Borough Council" in the text
+            meeting_link = None
+            next_el = el
+            while True:
+                next_el = next_el.find_next()
+                if not next_el or next_el.name in ["h2", "h3"]:
+                    break
+                if next_el.name == "a":
+                    link_text = next_el.get_text(" ", strip=True)
+                    if "Borough Council" in link_text:
+                        meeting_link = next_el
+                        break
 
-        meetings.append(meeting)
+            agenda_url = meeting_link["href"] if meeting_link and meeting_link.has_attr("href") else None
+            if agenda_url and agenda_url.startswith("/"):
+                agenda_url = "https://www.newprov.us" + agenda_url
 
+            meetings.append(
+                {
+                    "municipality": "New Providence",
+                    "body_name": "Borough Council",
+                    "title": "Borough Council Meeting",
+                    "meeting_date": meeting_date.isoformat(),
+                    "agenda_url": agenda_url,
+                }
+            )
+
+    print(f"Found {len(meetings)} NP meetings")
     return meetings
+
 
 
 def upsert_meetings(meetings):
