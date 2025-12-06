@@ -121,15 +121,9 @@ def upsert_meetings(meetings):
         print("No meetings to upsert")
         return
 
-    # NOTE: we write to the NEW TABLE here
     resp = client.table("np_meetings").upsert(
         meetings,
-        on_conflict=["municipality", "body_name", "meeting_date"],
+        on_conflict=["uid"],  # <--- single, guaranteed-unique column
     ).execute()
 
     print(f"Inserted/updated {len(meetings)} meetings.")
-
-
-if __name__ == "__main__":
-    meetings = scrape_new_providence()
-    upsert_meetings(meetings)
