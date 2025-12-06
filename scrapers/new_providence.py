@@ -35,6 +35,8 @@ def scrape_new_providence():
 
     resp = requests.get(NP_URL, timeout=20)
     resp.raise_for_status()
+    print("HTML length:", len(resp.text))
+    print(resp.text[:2000])  # print first 2000 characters
     soup = BeautifulSoup(resp.text, "html.parser")
 
     # 1) Find the "Borough Council" section header
