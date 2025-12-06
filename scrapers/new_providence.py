@@ -4,76 +4,93 @@ import re
 from datetime import datetime
 from supabase import create_client, Client
 import os
+from urllib.parse import urljoin
 
 # --- CONFIG ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # service key needed to write
 client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# New Providence agenda page (Agenda Center)
+# Use the real Agenda Center page
 NP_URL = "https://www.newprov.us/AgendaCenter"
 
-# Regex to pull _MMDDYYYY- out of the href, e.g. _12022025-1258
-DATE_FROM_HREF = re.compile(r"_([0-9]{8})-")
+# Matches things like "Dec 2, 2025" or "December 2, 2025"
+DATE_REGEX = r"([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})"
 
 
-def date_from_href(href: str):
-    """
-    Extract a date from an href like:
-    /AgendaCenter/ViewFile/Agenda/_12022025-1258
-    -> 2025-12-02
-    """
-    m = DATE_FROM_HREF.search(href)
+def parse_date(text: str):
+    m = re.search(DATE_REGEX, text)
     if not m:
         return None
-
-    num = m.group(1)  # e.g. "12022025" = MMDDYYYY
-    try:
-        return datetime.strptime(num, "%m%d%Y").date()
-    except ValueError:
-        return None
+    for fmt in ("%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(m.group(1), fmt).date()
+        except ValueError:
+            continue
+    return None
 
 
 def scrape_new_providence():
     print("Scraping New Providence...")
 
-    response = requests.get(NP_URL, timeout=20)
-    response.raise_for_status()
+    resp = requests.get(NP_URL, timeout=20)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    # 1) Find the "Borough Council" section header
+    borough_header = None
+    for h in soup.find_all(["h2", "h3"]):
+        if "Borough Council" in h.get_text():
+            borough_header = h
+            break
+
+    if borough_header is None:
+        print("Could not find Borough Council section")
+        return []
 
     meetings = []
 
-    # Find all <a> links that look like agenda links
-    for link in soup.find_all("a", href=True):
-        href = link["href"]
-        text = link.get_text(" ", strip=True)
+    # 2) Walk forward from that header until we hit the next main section
+    for node in borough_header.find_all_next():
+        # Stop when we hit another big section (like Board of Health, Planning Board, etc.)
+        if node.name == "h2" and "Borough Council" not in node.get_text():
+            break
 
-        # Only agenda links in the AgendaCenter
-        if "/AgendaCenter/ViewFile/Agenda/" not in href:
-            continue
+        # Each meeting line is an h3 like "Dec 2, 2025"
+        if node.name == "h3":
+            date_text = node.get_text(" ", strip=True)
+            meeting_date = parse_date(date_text)
+            if not meeting_date:
+                continue
 
-        # Only Borough Council meetings
-        if "Borough Council" not in text:
-            continue
+            # Look ahead from this h3 for the first anchor with "Borough Council" in it
+            link = None
+            cur = node
+            while True:
+                cur = cur.find_next()
+                if cur is None:
+                    break
+                if cur.name == "h3":  # next meeting, stop
+                    break
+                if cur.name == "a" and "Borough Council" in cur.get_text(" ", strip=True):
+                    link = cur
+                    break
 
-        meeting_date = date_from_href(href)
-        if not meeting_date:
-            continue
+            if not link or not link.has_attr("href"):
+                continue
 
-        full_url = href
-        if full_url.startswith("/"):
-            full_url = "https://www.newprov.us" + full_url
+            href = urljoin(NP_URL, link["href"])
+            title = link.get_text(" ", strip=True)
 
-        meetings.append(
-            {
-                "municipality": "New Providence",
-                "body_name": "Borough Council",
-                "title": text or "Borough Council Meeting",
-                "meeting_date": meeting_date.isoformat(),
-                "agenda_url": full_url,
-            }
-        )
+            meetings.append(
+                {
+                    "municipality": "New Providence",
+                    "body_name": "Borough Council",
+                    "title": title,
+                    "meeting_date": meeting_date.isoformat(),
+                    "agenda_url": href,
+                }
+            )
 
     print(f"Found {len(meetings)} NP meetings")
     return meetings
@@ -81,21 +98,14 @@ def scrape_new_providence():
 
 def upsert_meetings(meetings):
     if not meetings:
-        print("No meetings to upsert.")
+        print("No meetings to upsert")
         return
 
-    for m in meetings:
-        # Upsert based on municipality + body_name + meeting_date
-        client.table("meetings").upsert(
-            {
-                "municipality": m["municipality"],
-                "body_name": m["body_name"],
-                "title": m["title"],
-                "meeting_date": m["meeting_date"],
-                "agenda_url": m["agenda_url"],
-            },
-            on_conflict=["municipality", "body_name", "meeting_date"],
-        ).execute()
+    # Bulk upsert into Supabase
+    client.table("meetings").upsert(
+        meetings,
+        on_conflict=["municipality", "body_name", "meeting_date"],
+    ).execute()
 
     print(f"Inserted/updated {len(meetings)} meetings.")
 
