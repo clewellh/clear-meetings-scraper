@@ -9,7 +9,7 @@ from supabase import create_client, Client
 
 # --- CONFIG ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # service role key (from Supabase settings)
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # service role key
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("SUPABASE_URL or SUPABASE_SERVICE_KEY not set in env")
@@ -24,11 +24,7 @@ DATE_REGEX = r"([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})"
 
 
 def parse_date(text: str):
-    """
-    Parse dates like:
-      - Dec 2, 2025
-      - December 2, 2025
-    """
+    """Parse dates like 'Dec 2, 2025' or 'December 2, 2025'."""
     if not text:
         return None
 
@@ -83,18 +79,15 @@ def scrape_new_providence():
                 continue
 
             # Look ahead from this h3 for the first anchor that looks like the meeting
-            # For Borough Council, the first link is usually "Borough Council Regular Meeting"
             link = None
             cur = node
             while True:
                 cur = cur.find_next()
                 if cur is None:
                     break
-                # stop when we hit the next meeting heading
-                if cur.name == "h3":
+                if cur.name == "h3":  # next meeting
                     break
                 if cur.name == "a":
-                    # We accept either the full meeting title or the "Agenda" link
                     text = cur.get_text(" ", strip=True)
                     href = cur.get("href", "")
                     if "Borough Council" in text or "/AgendaCenter/ViewFile/Agenda/" in href:
@@ -127,13 +120,13 @@ def upsert_meetings(meetings):
         print("No meetings to upsert")
         return
 
-    resp = client.table("meetings").upsert(
+    # NOTE: we write to the NEW TABLE here
+    resp = client.table("np_meetings").upsert(
         meetings,
-        on_conflict=["municipality", "body_name", "meeting_date"]
+        on_conflict=["municipality", "body_name", "meeting_date"],
     ).execute()
 
     print(f"Inserted/updated {len(meetings)} meetings.")
-
 
 
 if __name__ == "__main__":
