@@ -129,5 +129,8 @@ def upsert_meetings(meetings):
     print("Supabase upsert response:", resp)
     print(f"Inserted/updated {len(meetings)} meetings.")
 
+if __name__ == "__main__":
+    meetings = scrape_new_providence()
+    upsert_meetings(meetings)
 
 
