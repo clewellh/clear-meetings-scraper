@@ -112,8 +112,18 @@ def scrape_new_providence():
     }
 )
 
-    print(f"Found {len(meetings)} Borough Council meetings")
-    return meetings
+        print(f"Found {len(meetings)} NP meetings before dedupe")
+
+    # Deduplicate by uid so we don't send duplicates in one upsert
+    unique_by_uid = {}
+    for m in meetings:
+        unique_by_uid[m["uid"]] = m  # later ones overwrite earlier ones with same uid
+
+    deduped_meetings = list(unique_by_uid.values())
+    print(f"After dedupe, {len(deduped_meetings)} NP meetings")
+
+    return deduped_meetings
+
 
 
 def upsert_meetings(meetings):
