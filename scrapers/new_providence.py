@@ -102,14 +102,15 @@ def scrape_new_providence():
             title = link.get_text(" ", strip=True) or "Borough Council Meeting"
 
             meetings.append(
-                {
-                    "municipality": "New Providence",
-                    "body_name": "Borough Council",
-                    "title": title,
-                    "meeting_date": meeting_date.isoformat(),
-                    "agenda_url": full_url,
-                }
-            )
+    {
+        "uid": f"New Providence|Borough Council|{meeting_date.isoformat()}",
+        "municipality": "New Providence",
+        "body_name": "Borough Council",
+        "title": title,
+        "meeting_date": meeting_date.isoformat(),
+        "agenda_url": full_url,
+    }
+)
 
     print(f"Found {len(meetings)} Borough Council meetings")
     return meetings
