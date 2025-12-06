@@ -123,7 +123,11 @@ def upsert_meetings(meetings):
 
     resp = client.table("np_meetings").upsert(
         meetings,
-        on_conflict=["uid"],  # <--- single, guaranteed-unique column
+        on_conflict=["uid"],
     ).execute()
 
+    print("Supabase upsert response:", resp)
     print(f"Inserted/updated {len(meetings)} meetings.")
+
+
+
