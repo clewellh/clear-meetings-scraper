@@ -127,15 +127,13 @@ def upsert_meetings(meetings):
         print("No meetings to upsert")
         return
 
-    # Bulk upsert on municipality + body_name + meeting_date
     resp = client.table("meetings").upsert(
         meetings,
-        on_conflict=["municipality", "body_name", "meeting_date"],
+        on_conflict=["municipality", "body_name", "meeting_date"]
     ).execute()
 
     print(f"Inserted/updated {len(meetings)} meetings.")
-    # Optional: print Supabase response status/debug
-    # print(resp)
+
 
 
 if __name__ == "__main__":
